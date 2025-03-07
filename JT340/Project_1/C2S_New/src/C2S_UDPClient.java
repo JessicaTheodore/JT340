@@ -1,5 +1,15 @@
 package Project_1.C2S_New.src;
 
+// Where Heartbeats Are Implemented
+// In C2S_UDPClient.java & P2P_UDPClient.java
+// Uses TimeUnit.SECONDS.sleep(random) to introduce random 0-30 sec delays before sending updates.
+// Calls createAndSendPacket() each cycle to notify the server or peers that it’s alive.
+
+// In C2S_UDPServer2.java & P2P_UDPServer2.java
+// Each received update resets a 30-second countdown timer for that node.
+// If no update is received within 30 sec, the node is marked offline and removed
+// If a node sends another update later, it rejoins automatically.
+
 import java.io.*;
 import java.net.*;
 import java.nio.file.*;
