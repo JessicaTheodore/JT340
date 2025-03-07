@@ -1,9 +1,10 @@
 package Project_1.P2P_New.src;
 
-
 import java.io.*;
 import java.net.*;
+import java.nio.file.Paths;
 import java.util.*;
+import java.util.concurrent.*;
 
 public class P2P_UDPClient {
     private static String directoryPath;
@@ -11,19 +12,25 @@ public class P2P_UDPClient {
     private static int port;
 
     public static void main(String[] args) {
-        loadConfig();  // Load config before doing anything
+        loadConfig(); // Load configuration from P2Pconfig.txt
         System.out.println("P2P Client Config Loaded: Directory - " + directoryPath + ", Port - " + port);
 
-        // Request file listings from peers
-        for (String peer : peerIps) {
-            System.out.println("Requesting file listing from: " + peer);
-            requestFileListing(peer, port);
-        }
+        // Start sending heartbeat messages in a separate thread
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(2);
+        scheduler.scheduleAtFixedRate(() -> sendHeartbeat(), 0, 30, TimeUnit.SECONDS);
+        
+        // Request file listings from peers every 15 seconds
+        scheduler.scheduleAtFixedRate(() -> {
+            for (String peer : peerIps) {
+                System.out.println("Requesting file listing from: " + peer);
+                requestFileListing(peer, port);
+            }
+        }, 0, 15, TimeUnit.SECONDS);
     }
 
     private static void loadConfig() {
         try {
-            File configFile = new File("P2P_New/Config/P2Pconfig.txt");
+            File configFile = Paths.get("P2P_New", "Config", "P2Pconfig.txt").toFile();
 
             if (!configFile.exists()) {
                 System.out.println("Error: P2Pconfig.txt not found at " + configFile.getAbsolutePath());
@@ -40,7 +47,7 @@ public class P2P_UDPClient {
             // Read values from the config file
             String peers = properties.getProperty("peer_ips");
             if (peers != null) {
-                peerIps = Arrays.asList(peers.split(","));
+                peerIps = Arrays.asList(peers.split("\\s*,\\s*")); // Trim spaces
             }
 
             port = Integer.parseInt(properties.getProperty("port", "1000"));
@@ -56,8 +63,25 @@ public class P2P_UDPClient {
         }
     }
 
+    // 🔹 Send Heartbeat Messages to Peers
+    private static void sendHeartbeat() {
+        try (DatagramSocket socket = new DatagramSocket()) {
+            String heartbeatMessage = "HEARTBEAT from " + InetAddress.getLocalHost().getHostAddress();
+            byte[] buffer = heartbeatMessage.getBytes();
 
-    //Part about requesting file listings from other nodes
+            for (String peer : peerIps) {
+                InetAddress peerAddress = InetAddress.getByName(peer);
+                DatagramPacket packet = new DatagramPacket(buffer, buffer.length, peerAddress, port);
+                socket.send(packet);
+            }
+
+            System.out.println("Heartbeat sent to peers: " + peerIps);
+        } catch (Exception e) {
+            System.out.println("Error sending heartbeat: " + e.getMessage());
+        }
+    }
+
+    // 🔹 Request File Listings from Peers
     private static void requestFileListing(String peerIP, int peerPort) {
         try {
             DatagramSocket socket = new DatagramSocket();
